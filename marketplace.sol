@@ -100,11 +100,10 @@ contract market is Ownable {
     }
 
     mapping (uint => address) _whiteList; // mapping 타입으로 바꾸기 (tokenid -> whitelist)
-    mapping(uint256 => MarketItem) private idMarketItem; //a way to access values of the MarketItem struct above by passing an integer ID
+    mapping (uint256 => MarketItem) private idMarketItem; //a way to access values of the MarketItem struct above by passing an integer ID
 
     struct MarketItem {
         uint itemId;
-        address nftContract;
         uint256 tokenId;
         address payable seller; //person selling the nft
         address payable owner; //owner of the nft
@@ -115,7 +114,6 @@ contract market is Ownable {
     //log message (when Item is sold)
     event MarketItemCreated (
         uint indexed itemId,
-        address indexed nftContract,
         uint256 indexed tokenId,
         address  seller,
         address  owner,
@@ -129,21 +127,20 @@ contract market is Ownable {
         return true;
     }
 
-    function listing(address from, uint256 tokenId, uint _cost) public {
+    function listing(address owner, uint256 tokenId, uint _cost) public {
         uint Origin_cost = park.getProductionCost(tokenId);
         require(_cost < Origin_cost);
-        if(!park.isApprovedForAll(from, address(this))) {
-            park.approvalForAllProxy(from);
+        if(!park.isApprovedForAll(owner, address(this))) {
+            park.approvalForAllProxy(owner);
         }
 
         _itemIds.increment(); //add 1 to the total number of items ever created
         uint256 itemId = _itemIds.current();
 
-        idMarketItem[itemId] = MarketItem(
+        idMarketItem[tokenId] = MarketItem(
             itemId,
-            msg.sender, //->nftcontract!! 원혁님께 물어보쟝
             tokenId,
-            payable(from), //address of the seller putting the nft up for sale
+            payable(owner), //address of the seller putting the nft up for sale
             payable(address(0)), //no owner yet (set owner to empty address)
             _cost,
             false
@@ -151,31 +148,29 @@ contract market is Ownable {
 
         emit MarketItemCreated(
             itemId,
-            msg.sender, //->nftcontract
             tokenId,
-            address from,
+            owner,
             address(0),
             _cost,
             false
         );
     }
 
-    function whiteListing(address from, address to, uint256 tokenId, uint _cost) public {
+    function whiteListing(address owner, address to, uint256 tokenId, uint _cost) public {
         _whiteList[tokenId] = to; 
         uint Origin_cost = park.getProductionCost(tokenId);
         require(_cost < Origin_cost);
-        if(!park.isApprovedForAll(from, address(this))) {
-            park.approvalForAllProxy(from);
+        if(!park.isApprovedForAll(owner, address(this))) {
+            park.approvalForAllProxy(owner);
         }  
 
         _itemIds.increment(); //add 1 to the total number of items ever created
         uint256 itemId = _itemIds.current();
 
-        idMarketItem[itemId] = MarketItem(
+        idMarketItem[tokenId] = MarketItem(
             itemId,
-            msg.sender, //->nftcontract!!
             tokenId,
-            payable(from), //address of the seller putting the nft up for sale
+            payable(owner), //address of the seller putting the nft up for sale
             payable(address(0)), //no owner yet (set owner to empty address)
             _cost,
             false
@@ -183,29 +178,28 @@ contract market is Ownable {
 
         emit MarketItemCreated(
             itemId,
-            msg.sender, //->nftcontract
             tokenId,
-            from,
+            owner,
             address(0),
             _cost,
             false
         );
     }
 
-    function purchase(address from, address to, uint256 tokenId, uint _cost) public {
-        park.transferFrom(from, to, tokenId);
-        token.transferFrom(from, to, _cost);
+    function publicPurchase(address owner, address to, uint256 tokenId, uint _cost) public {
+        park.transferFrom(owner, to, tokenId);
+        token.transferFrom(owner, to, _cost);
 
         idMarketItem[tokenId].owner = payable(to); //mark buyer as new owner
         idMarketItem[tokenId].sold = true; //mark that it has been sold
         _itemsSold.increment(); //increment the total number of Items sold by 1
     }
 
-    function privatePurchase(address from, address to, uint256 tokenId, uint _cost) public {
+    function privatePurchase(address owner, address to, uint256 tokenId, uint _cost) public {
         require(_whiteList[tokenId]==to);
-        park.transferFrom(from, to, tokenId);
+        park.transferFrom(owner, to, tokenId);
         delete _whiteList[tokenId];
-        token.transferFrom(from, to, _cost);
+        token.transferFrom(owner, to, _cost);
 
         idMarketItem[tokenId].owner = payable(to); //mark buyer as new owner
         idMarketItem[tokenId].sold = true; //mark that it has been sold
